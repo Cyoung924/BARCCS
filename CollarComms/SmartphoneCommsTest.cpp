@@ -6,7 +6,7 @@
 #define TX 2
 
 // Instantiation of a Software UART
-SoftwareSerial BTSerial(RX, TX); // (RX, TX)
+SoftwareSerial ble_device(RX, TX); // (RX, TX)
 
 String str_ii = "";
 int ii_0 = 0;
