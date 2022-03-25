@@ -1,7 +1,2 @@
-<<<<<<< HEAD
 language = "cpp"
 run = "echo Type path name i.e CollarComms; read pathName; cd $pathName; echo Files available to compile:; ls; echo Type name of cpp file without extension to compile:; read fileName; g++ $fileName.cpp -o $fileName; ./$fileName"
-=======
-language = "bash"
-run = ""
->>>>>>> origin/main
