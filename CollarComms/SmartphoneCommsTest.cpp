@@ -17,9 +17,9 @@ void setup() {
 
   // Enter AT+ commands of interest here (BLE Address, UUIDs, Power settings, may need to be revised for HM-10)
   ble_cmd("AT+NAMEBLExAR","Device Name: "); // printout device name
-  ble_cmd("AT+LADDR","Address: "); // printout BLE address
-  ble_cmd("AT+CHAR","Char UUID: "); // printout character UUID
-  ble_cmd("AT+VERSION","Version: "); // module version
+  ble_cmd("AT+ADDR?","Address: "); // printout BLE address
+  ble_cmd("AT+CHAR?","Char UUID: "); // printout character UUID
+  ble_cmd("AT+VERR?","Version: "); // module version
   ble_cmd("AT+RESET","Reset: "); // reset module
   str_ii = "";
   delay(500);
