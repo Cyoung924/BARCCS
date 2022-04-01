@@ -20,34 +20,46 @@ void loop() {
 }
 
 //Function to transmit UIK packet when after paired and called
-void transmit() {
+void collarTransmit() {
   //Update packet with UIK data assigned from phone
 
   //Write and transmit UIK
 }
 
 //
+void phoneTransmit() {
+  //Loop through list containing received collar UIK's
+    //Write and transmit received UIK(s)
+
+  //Delete all received UIK's
+}
+
+//Likely will need formula to avoid data collision
 void receive() {
   //Check to see if data can be read
     //Read data in size of UIK packet
+  
     //Check to see if data received is from phone
-      //Store in device memory as variable to pass to transmit()
+      //Store packet device memory as variable to pass to collarTransmit()
       //so that UIK can be generated
+      //Call phoneTransmit()
+  
     //Check to see if data is UIK of BARCCS device
       //If so, begin x sec timer before forced disconnect
-      //Store UIK packet in device memory (as str in list)
+      //Store UIK packet in device memory (as str in list) only if that UIK
+      //is not already stored in list (list comprehension?)
 
     //Flush serial buffer
 
     //Transmit own UIK
 
     //Check timer
-      //Force disconnect
+      //Force disconnect with GPIO
 
-  //Try transmitting a few times
+  //Try transmitting a few times for initiation
 }
 
 //For debugging
 void printPacket() {
-  //Print packet to serial
+  //Print received packet to serial
 }
