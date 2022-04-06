@@ -12,8 +12,8 @@ SoftwareSerial BTSerial (RX,TX);
 
 Chrono chrono;
 
-//Struct to hold UIK packet. Dependent on React Native
-//reading and writing structure
+//Struct to hold UIK packet.
+  //Change to 3 bytes. lead_id, uik, end_id?
 struct Packet {
   int a;
   int b;
@@ -98,15 +98,16 @@ void receive() {
       //Begin timer
       chrono.restart()
 
-      //Concatenate received packet
-      //Add packet to array of x length
-    }
-    //Flush serial buffer
+      while (chrono elapsed() < 5000) {
+        //Concatenate received packet
+        //Initialize array of x length with own UIK
+        //Add received packet to array of x length
+        //Flush serial buffer
 
-    //Transmit own UIK
-
-    //Check timer
+        //Transmit own UIK
+      }
       //Force disconnect with GPIO
+    }
 
   //Try transmitting a few times for initiation
 }
@@ -119,7 +120,9 @@ int concatenate(int a, int b, int c, int d) {
 
   String uik = String(s1 + s2 + s3 + s4);
 
-  return uik;
+  int uik_i = uik.toint();
+  
+  return uik_i;
 }
 
 //For debugging
