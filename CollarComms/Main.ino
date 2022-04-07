@@ -13,12 +13,10 @@ SoftwareSerial BTSerial (RX,TX);
 Chrono chrono;
 
 //Struct to hold UIK packet.
-  //Change to 3 bytes. lead_id, uik, end_id?
 struct Packet {
-  int a;
-  int b;
-  int c;
-  int d;
+  byte a;
+  byte b;
+  byte c;
 } pkt_tx, pkt_rx;
 
 //
@@ -83,28 +81,46 @@ void receive() {
       pkt_tx.a = IDENTIFIER;
       pkt_tx.b = pkt_rx.b;
       pkt_tx.c = pkt_rx.c;
-      pkt_tx.d = pkt_tx.d;
 
-      int own_uik = concatenate(pkt_tx.a, pkt_tx.b, pkt_tx.c, pkt_tx.d);
+      int own_uik = concatenate(pkt_tx.a, pkt_tx.b, pkt_tx.c);
 
       phoneTransmit();
     }
   }
   
     //Check to see if data is UIK of BARCCS device
-      //Store UIK packet in device memory (as str in list) only if that UIK
-      //is not already stored in list (list comprehension?)
     if(id_byte == collar_id_byte){
       //Begin timer
       chrono.restart()
 
       while (chrono elapsed() < 5000) {
+        //Initialize array of x length with own UIK. x determines how many
+        //uik's can be stored before phone reconnection
+        int array_size = 5;
+        int uik_array[array_size] = {own_uik}
         //Concatenate received packet
-        //Initialize array of x length with own UIK
-        //Add received packet to array of x length
+        int found_uik = concatenate(pkt_rx.a, pkt_rx.b, pkt_rx.c);
+        
+        //Append received packet to array of x length
+        for(int i=1; i<array_size; i++) {
+          bool uik_exists;
+          do {
+            uik_exists = false;
+            for(int j=1; j<i; j++) {
+              if(found_uik == uik_array[j]) {
+                uik_exists = true;
+                break;
+              }
+            }
+          } while(uik_exists);
+          uik_array[i] = found_uik;
+          }
         //Flush serial buffer
-
-        //Transmit own UIK
+        while(BTSerial.available() > 0) {
+          BTSerial.read();
+          }
+        //Transmit UIK's
+        collarTransmit(uik_array);
       }
       //Force disconnect with GPIO
     }
@@ -112,13 +128,12 @@ void receive() {
   //Try transmitting a few times for initiation
 }
 
-int concatenate(int a, int b, int c, int d) {
+int concatenate(byte a, byte b, byte c) {
   String s1 = String(a);
   String s2 = String(b);
   String s3 = String(c);
-  String s4 = String(d);
 
-  String uik = String(s1 + s2 + s3 + s4);
+  String uik = String(s1 + s2 + s3);
 
   int uik_i = uik.toint();
   
