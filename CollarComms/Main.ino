@@ -56,7 +56,7 @@ void loop() {
 //Function to transmit UIK packet when after paired and called
 void collarTransmit(int own_uik) {
   	//Transmit own UIK a few times to avoid faulty packet transmission
-  	for(i=0;i<10;i++) {
+  	for(i=0; i<10; i++) {
     	BTSerial.write(own_uik);
     	delay(5) //small delay to avoid data collision
   	}
@@ -67,13 +67,15 @@ void phoneTransmit(string mac_addr, int uik_array) {
   	//Transmit own MAC Address to phone
   	BTSerial.write(mac_addr);
 
-  	//Loop through list containing received collar UIK's
-	for(i=0; i<5; i++) {
+  	//Loop through list containing received collar UIK's, writes own UIK
+	//first
+	for(i=0; i<array_size; i++) {
 		int transmit_uik = uik_array[i];
 		BTSerial.write(transmit_uik);
 	}
   
-  	//Delete all received UIK's
+  	//Delete all received UIK's (fills the array with 0's)
+	uik_array.fill();
 }
 
 void receive() {
@@ -87,6 +89,9 @@ void receive() {
   	if(BTSerial.available() >= sizeof(Packet)) {
     	BTSerial.readBytes((byte *) & pkt_rx,sizeof(Packet));
 
+		Serial.print("Received packet: (");
+		printPacket(pkt_rx.a, pkt_rx.b, pkt_rx.c);
+		
     	byte id_byte = pkt_rx.a;
     
     	//Check to see if data received is from phone
@@ -96,10 +101,15 @@ void receive() {
       		pkt_tx.b = pkt_rx.b;
       		pkt_tx.c = pkt_rx.c;
 
+			Serial.print("Transmitted packet to phone: (")
+			printPacket(pkt_tx.a, pkt_tx.b, pkt_tx.c);
+			
       		int own_uik = concatenate(pkt_tx.a, pkt_tx.b, pkt_tx.c);
 			uik_array = write_uik_array(own_uik);
 
       		phoneTransmit();
+			//Reinitialize array with own uik after phoneTransmit() clears
+			uik_array = write_uik_array(own_uik);
     	}
   
     	//Check to see if data is UIK of BARCCS device
@@ -108,13 +118,14 @@ void receive() {
       		chrono.restart();
 
       		while (chrono elapsed() < 5000) {
-        		//Initialize array of x length with own UIK. x determines
-        		//how many uik's can be stored before phone reconnection
-        		int uik_array[array_size] = {own_uik};
-        		//Concatenate received packet
+				Serial.print("Packet received from collar: (");
+				printPacket(pkt_rx.a, pkt_rx.b, pkt_rx.c);
+				
+				//Concatenate received packet
         		int found_uik = concatenate(pkt_rx.a, pkt_rx.b, pkt_rx.c);
         
-        		//Append received packet to array of x length
+        		//Append received packet to array of x length, skipping
+				//over the 0th position to not overwrite own_uik
         		for(int i=1; i<array_size; i++) {
           			bool uik_exists;
           			do {
@@ -126,7 +137,7 @@ void receive() {
               				}
             			}
           			} while(uik_exists);
-          			uik_array[i] = found_uik;
+					write_uik_array(found_uik, i);
           		}
         		//Flush serial buffer
         		while(BTSerial.available() > 0) {
@@ -146,16 +157,17 @@ void receive() {
 	}
 }
 
-int write_uik_array(int uik) {
+int write_uik_array(int uik, int position) {
 	bool phone_device = checkPrefix(uik, phone_id_byte);
 	bool collar_device = checkPrefix(uik, collar_id_byte);
 
 	if(phone_device) {
-		
+		uik_array[0] = uik;
 	}
 	if(collar_device) {
-		
+		uik_array[position] = uik;
 	}
+	return uik_array;
 }
 
 bool checkprefix(int uik, int device_id) {
@@ -195,8 +207,11 @@ int concatenate(byte a, byte b, byte c) {
 }
 
 //For debugging
-void printPacket() {
-  //Print received packet to serial
+void printPacket(byte packet_a, byte packet_b, byte packet_c) {
+  	//Print packet to serial
+	Serial.print(packet_a); Serial.print(",");
+  	Serial.print(packet_b); Serial.print(",");
+  	Serial.print(packet_c); Serial.println(")");
 }
 
 //interrupt BT connection
