@@ -39,18 +39,32 @@ void setup() {
   	BTSerial.println("AT+BAUD0")
   	BTSerial.println("AT+POWE3")
   	BTSerial.println("AT+NAMEBARCCS")
+	BTSerial.println("AT+SHOW1")
   	BTSerial.println("AT+PIO11") //disable status LED blink
+	//Set role to 0 to talk to smartphone app
+	
 	BTSerial.println("AT+ADDR?")
   	string mac_addr = BTSerial.read()
 }
 
 //
 void loop() {
+    deviceDiscovery();
+	
+	//mode switching routine
+	
+    //initiate connection
+
+    //while connected:
+    //tx function
+
+    //Suitable delay
+  	delay(50)
+		
   	//Begin constantly receiving
   	receive();
   
-  	//Suitable delay
-  	delay(50)
+  	
 }
 
 //Function to transmit UIK packet when after paired and called
@@ -229,6 +243,7 @@ void peripheralMode(){
 //Configure HM-10 for central mode
 void centralMode(){
     BTSerial.println("AT");
+    //add delays between AT calls and other configs?
     BTSerial.println("AT+ROLE1");
     BTSerial.println("AT+IMME1"); //disable auto-pairing
     BTSerial.println("AT+RESET");
@@ -236,12 +251,32 @@ void centralMode(){
 
 //Device discovery scan
 void deviceDiscovery(){
-    //return array of devices discovered?
-
-    BTSerial.println("AT");
-    BTSerial.println("AT+DISC?");
-    //parse and store the response
-    //see discord for the differences in output for DSD and HMSoft
+	String mac_addr_str = "MAC:";
+	//Role-switching
+	BTSerial.println("AT+ROLE?");
+	String role_str = BTSerial.read();
+	role = role_str[7];
+	if role == 1:
+		BTSerial.println("AT+DISC?");
+    	//parse and store the response
+    	String disc_str = BTSerial.read();
+		String name_str = "OK+NAME:BARCCS";
+		int first_index = disc_str.indexOf(name_str);
+		if (first_index != -1){
+			for(int search_index = first_index; search_index != 0; search_index++){
+				int name_index = disc_str.indexOf(name_str, search_index);
+				int mac_addr_index = name_index - 12;
+				String mac_addr = disc_str.substring(mac_addr_index, name_index);
+				//Append mac_addr to delimitted string
+				mac_addr_str += mac_addr;
+				mac_addr_str += ",";
+				
+				search_index = name_index;
+			}
+		}
+	else{
+		
+	}
 }
 
 //Connect to device from discovery
@@ -249,10 +284,4 @@ void connectDevice(int index){
     BTSerial.println("AT");
     //this is not properly coded prob will not compile
     BTSerial.println("AT+CONN"+toChar(index));
-}
-
-//track previous device connections and attempt connection to each device on
-//discovery list until a collar is identified
-void findCollar(){
-    
 }
