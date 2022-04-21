@@ -40,6 +40,7 @@ void setup() {
   	BTSerial.println("AT+POWE3")
   	BTSerial.println("AT+NAMEBARCCS")
 	BTSerial.println("AT+SHOW1")
+	BTSerial.println("AT+ROLE0")
   	BTSerial.println("AT+PIO11") //disable status LED blink
 	//Set role to 0 to talk to smartphone app
 	
@@ -48,30 +49,23 @@ void setup() {
 }
 
 //
-void loop() {
-    deviceDiscovery();
-	
-	//mode switching routine
+void loop() {	
+	//Discover MAC addresses
+	String mac_addr_str = deviceDiscovery();
 	
     //initiate connection
+	int addr_length = mac_addr_str.length();
+	if (addr_length > 4){
+		deviceConnect(mac_addr_str);
+	}
 
-    //while connected:
-    //tx function
-
-    //Suitable delay
-  	delay(50)
-		
-  	//Begin constantly receiving
-  	receive();
-  
-  	
 }
 
 //Function to transmit UIK packet when after paired and called
 void collarTransmit(int own_uik) {
   	//Transmit own UIK a few times to avoid faulty packet transmission
   	for(i=0; i<10; i++) {
-    	BTSerial.write(own_uik);
+    	BTSerial.println(own_uik);
     	delay(5) //small delay to avoid data collision
   	}
 }
@@ -79,13 +73,13 @@ void collarTransmit(int own_uik) {
 //
 void phoneTransmit(string mac_addr, int uik_array) {
   	//Transmit own MAC Address to phone
-  	BTSerial.write(mac_addr);
+  	BTSerial.println(mac_addr);
 
   	//Loop through list containing received collar UIK's, writes own UIK
 	//first
 	for(i=0; i<array_size; i++) {
 		int transmit_uik = uik_array[i];
-		BTSerial.write(transmit_uik);
+		BTSerial.println(transmit_uik);
 	}
   
   	//Delete all received UIK's (fills the array with 0's)
@@ -166,8 +160,12 @@ void receive() {
 		//Try transmitting a few times for initiation
 		collarTransmit(own_uik);
 	}
+	//If data is unavailable
 	else{
-		//Perform AT commands
+		//Move on to next MAC Address
+		BTSerial.println("AT");
+		digitalWrite(reset_pin, LOW);
+		return;
 	}
 }
 
@@ -250,13 +248,14 @@ void centralMode(){
 }
 
 //Device discovery scan
-void deviceDiscovery(){
+String deviceDiscovery(){
 	String mac_addr_str = "MAC:";
 	//Role-switching
 	BTSerial.println("AT+ROLE?");
 	String role_str = BTSerial.read();
 	role = role_str[7];
-	if role == 1:
+	if role == 1{
+		//Discover devices and store MAC addresses
 		BTSerial.println("AT+DISC?");
     	//parse and store the response
     	String disc_str = BTSerial.read();
@@ -274,14 +273,28 @@ void deviceDiscovery(){
 				search_index = name_index;
 			}
 		}
-	else{
-		
+		//Switch role
+		peripheralMode();
 	}
+	else{
+		random_delay = random(100, 3000);
+		delay(random_delay);
+		receive();
+		centralMode();
+	}
+	return mac_addr_str;
 }
 
 //Connect to device from discovery
-void connectDevice(int index){
-    BTSerial.println("AT");
-    //this is not properly coded prob will not compile
-    BTSerial.println("AT+CONN"+toChar(index));
+void deviceConnect(String mac_addr_str){
+    int mac_addr_count = ((mac_addr_str.length() - 4) % 13);
+	for(int i = 1; i < (mac_addr_count + 1); i++){
+		
+		int search_index = 4 + (i * 13);
+		String mac_addr = mac_addr_str.substring((search_index - 12), search_index);
+		
+		BTSerial.println("AT");
+		BTSerial.println("AT+CON", mac_addr);
+		receive();
+	}
 }
