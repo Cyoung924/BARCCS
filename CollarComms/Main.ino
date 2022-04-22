@@ -6,7 +6,6 @@
 #define TX 2
 #define BAUDRATE 9600
 #define ARRAYSIZE 5
-#define MILLIDELAY 1500
 
 //Defines BLE object as BTSerial
 SoftwareSerial BTSerial (RX,TX);
@@ -15,10 +14,12 @@ int reset_pin = 13;
 byte phone_id_byte = 123;
 byte collar_id_byte = 234;
 int uik_array[ARRAYSIZE] = {};
+int at_delay = 1000;
+unsigned long milli_delay = 5000;
 
 //Struct to hold UIK packet.
 struct Packet {
-	byte a;
+  byte a;
   byte b;
   byte c;
 } pkt_tx, pkt_rx;
@@ -27,33 +28,47 @@ struct Packet {
 void setup() {
   //Inititalize baud rates for both serial and HM-10
   Serial.begin(BAUDRATE);
+  while (!Serial) {
+    ;
+  }
   BTSerial.begin(BAUDRATE);
 
-	pinMode(reset_pin, OUTPUT);
+  pinMode(reset_pin, OUTPUT);
 
   //Initialize w/ AT commands to complete before phone pairs
-  BTSerial.println("AT+BAUD0"); delay(10); //set HM-10 baud rate to 9600
-  BTSerial.println("AT+POWE3"); delay(10); //max out transmission power
-  BTSerial.println("AT+NAMEBARCCS"); delay(10); //set name to predetermined
-	BTSerial.println("AT+SHOW1"); delay(10); //default to show name for discovery
-	BTSerial.println("AT+ROLE0"); delay(10); //set peripheral so primed for smartphone
-  BTSerial.println("AT+PIO11"); delay(10); //disable status LED blink
+  BTSerial.print("AT+BAUD0"); delay(at_delay); //set HM-10 baud rate to 9600
+  BTSerial.print("AT+POWE3"); delay(at_delay); //max out transmission power
+  BTSerial.print("AT+NAMEBARCCS"); delay(at_delay); //set name to predetermined
+  BTSerial.print("AT+SHOW1"); delay(at_delay); //default to show name for discovery
+  BTSerial.print("AT+ROLE0"); delay(at_delay); //set peripheral so primed for smartphone
+  //BTSerial.println("AT+PIO11"); delay(10); //disable status LED blink
 
-	String response = atCommandResponse("AT+ADDR?", MILLIDELAY);
+  String response = atCommandResponse("AT+ADDR?", milli_delay);
   String own_mac_addr = response.substring(8, 20);
 
 }
 
 //
 void loop() {
-	//Discover MAC addresses
-	String mac_addr_str = deviceDiscovery();
+  //Discover MAC addresses
+  String mac_addr_str = deviceDiscovery();
 
   //initiate connection
-	int addr_length = mac_addr_str.length();
-	if (addr_length > 4){
-		deviceConnect(mac_addr_str);
-	}
+  int addr_length = mac_addr_str.length();
+  if (addr_length > 4){
+    Serial.println("Connecting...");
+    deviceConnect(mac_addr_str);
+  }
+
+  peripheralMode();
+  while(BTSerial.available() > 0) {
+    BTSerial.read();
+  }
+  short int random_delay = random(100, 3000);
+  delay(random_delay);
+
+  receive();
+  centralMode();
 }
 
 //Function to transmit UIK packet when after paired and called
@@ -74,13 +89,13 @@ void collarTransmit(int array[]) {
 //
 void phoneTransmit(int array[], int size) {
   //Loop through list containing received collar UIK's, writes own UIK first
-	for(int i=0; i<size; i++) {
-		int transmit_uik = array[i];
+  for(int i=0; i<size; i++) {
+    int transmit_uik = array[i];
     //Transmits in bytes, phone will need to translate
-		BTSerial.write(transmit_uik);
-	}
+    BTSerial.write(transmit_uik);
+  }
   //Delete all received UIK's (fills the array with 0's)
-	for(int j=0; j<size; j++) {
+  for(int j=0; j<size; j++) {
     array[j] = 0;
   }
 }
@@ -89,7 +104,7 @@ void receive() {
   //Counter initialization
   static byte count = 10;
 
-	digitalWrite(reset_pin, HIGH);
+  digitalWrite(reset_pin, HIGH);
 
   //Check to see if data can be read from buffer
   if(BTSerial.available() >= sizeof(Packet)) {
@@ -97,8 +112,8 @@ void receive() {
     BTSerial.readBytes((byte *) & pkt_rx,sizeof(Packet));
 
     //Print received packet
-		Serial.print("Received packet: (");
-		Serial.print(pkt_rx.a); Serial.print(",");
+    Serial.print("Received packet: (");
+    Serial.print(pkt_rx.a); Serial.print(",");
     Serial.print(pkt_rx.b); Serial.print(",");
     Serial.print(pkt_rx.c); Serial.println(")");
 
@@ -111,22 +126,22 @@ void receive() {
       pkt_tx.b = pkt_rx.b;
       pkt_tx.c = pkt_rx.c;
 
-			Serial.print("Packet to transmit: (");
-			Serial.print(pkt_tx.a); Serial.print(",");
+      Serial.print("Packet to transmit: (");
+      Serial.print(pkt_tx.a); Serial.print(",");
       Serial.print(pkt_tx.b); Serial.print(",");
       Serial.print(pkt_tx.c); Serial.println(")");
 
       //Get rid of and make static in implementation demo
       int own_uik = concatenate(pkt_tx.a, pkt_tx.b, pkt_tx.c);
 
-			//make function void, and just modify existing array
+      //make function void, and just modify existing array
       modify_uik_array(uik_array, own_uik, 0);
 
       //Transmit modified uik array
       phoneTransmit(uik_array, ARRAYSIZE);
 
-			//Reinitialize array with own uik after phoneTransmit() clears
-			modify_uik_array(uik_array, own_uik, 0);
+      //Reinitialize array with own uik after phoneTransmit() clears
+      modify_uik_array(uik_array, own_uik, 0);
     }
 
     //Check to see if data is UIK of BARCCS collar device
@@ -135,16 +150,17 @@ void receive() {
       unsigned long start_time = millis();
 
       while (millis() - start_time < 5000) {
-			  Serial.print("Packet received from collar: (");
-			  Serial.print(pkt_rx.a); Serial.print(",");
+        Serial.print("Packet received from collar: (");
+        Serial.print(pkt_rx.a); Serial.print(",");
         Serial.print(pkt_rx.b); Serial.print(",");
         Serial.print(pkt_rx.c); Serial.println(")");
 
-			  //Concatenate received packet
+        //Concatenate received packet
         int found_uik = concatenate(pkt_rx.a, pkt_rx.b, pkt_rx.c);
+        Serial.println(found_uik);
 
         //Append received packet to array of x length, skipping
-				//over the 0th position to not overwrite own_uik
+        //over the 0th position to not overwrite own_uik
         for(int i=1; i<ARRAYSIZE; i++) {
           bool uik_exists;
           do {
@@ -156,7 +172,7 @@ void receive() {
               }
             }
           } while(uik_exists);
-					modify_uik_array(uik_array, found_uik, i);
+          modify_uik_array(uik_array, found_uik, i);
         }
         //Flush serial buffer
         while(BTSerial.available() > 0) {
@@ -166,31 +182,31 @@ void receive() {
         collarTransmit(uik_array);
       }
       //Force disconnect with GPIO
-			digitalWrite(reset_pin, LOW);
-      BTSerial.println("AT");
+      digitalWrite(reset_pin, LOW);
+      BTSerial.print("AT"); delay(at_delay);
     }
-		//Try transmitting a few times for initiation
-		collarTransmit(uik_array);
-	}
-	//If data is unavailable
+    //Try transmitting a few times for initiation
+    collarTransmit(uik_array);
+  }
+  //If data is unavailable
   else {
-		//Move on to next MAC Address
-		BTSerial.println("AT");
-		digitalWrite(reset_pin, LOW);
-		return;
-	}
+    //Move on to next MAC Address
+    BTSerial.print("AT"); delay(at_delay);
+    digitalWrite(reset_pin, LOW);
+    return;
+  }
 }
 
 void modify_uik_array(int array[], int uik, int position) {
-	bool phone_device = checkPrefix(uik, phone_id_byte);
-	bool collar_device = checkPrefix(uik, collar_id_byte);
+  bool phone_device = checkPrefix(uik, phone_id_byte);
+  bool collar_device = checkPrefix(uik, collar_id_byte);
 
-	if(phone_device) {
-		array[0] = uik;
-	}
-	if(collar_device) {
-		array[position] = uik;
-	}
+  if(phone_device) {
+    array[0] = uik;
+  }
+  if(collar_device) {
+    array[position] = uik;
+  }
 }
 
 bool checkPrefix(int uik, int device_id) {
@@ -231,86 +247,104 @@ int concatenate(byte a, byte b, byte c) {
 
 //Configure HM-10 for peripheral mode
 void peripheralMode(){
-    BTSerial.println("AT");
-    BTSerial.println("AT+ROLE0");
+    Serial.println("Switching to Peripheral Mode...");
+    BTSerial.print("AT"); delay(at_delay);
+    BTSerial.print("AT+ROLE0"); delay(at_delay);
 }
 
 //Configure HM-10 for central mode
 void centralMode(){
-    BTSerial.println("AT");
+    Serial.println("Switching to Central Mode...");
+    BTSerial.print("AT"); delay(at_delay);
     //add delays between AT calls and other configs?
-    BTSerial.println("AT+ROLE1");
-    BTSerial.println("AT+IMME1"); //disable auto-pairing
-    BTSerial.println("AT+RESET");
+    BTSerial.print("AT+ROLE1"); delay(at_delay);
+    BTSerial.print("AT+IMME1"); delay(at_delay);
+    BTSerial.print("AT+RESET"); delay(at_delay);
 }
 
 //Device discovery scan
 String deviceDiscovery(){
-	String mac_addr_str = "MAC:";
-	//Role-switching
-  String role_response = atCommandResponse("AT+ROLE?", MILLIDELAY);
-	int role = role_response[7];
+  String mac_addr_str = "MAC:";
+  //Role-switching
+  String role_response = atCommandResponse("AT+ROLE?", milli_delay);
+  int role = role_response[7];
   //Discover can only happen in central mode
-	if (role == 1) {
-		//Discover devices and store MAC addresses
-    String disc_response = atCommandResponse("AT+DISC?", MILLIDELAY);
+  if (role == 49) {
+    //Discover devices and store MAC addresses
+    String disc_response = atCommandResponse("AT+DISC?", milli_delay);
     //parse and store the response
-		String name_str = "OK+NAME:BARCCS";
-		int first_index = disc_response.indexOf(name_str);
-		//If there is at least one BARCCS device in the discovery
+    String name_str = "OK+NAME:BARCCS";
+    int first_index = disc_response.indexOf(name_str);
+    //If there is at least one BARCCS device in the discovery
     if (first_index != -1){
       //For as many times as there are BARCCS devices in the discovery
-			for (int search_index = first_index; search_index != 0; search_index++) {
-				int name_index = disc_response.indexOf(name_str, search_index);
-				int mac_addr_index = name_index - 12;
-				String mac_addr = disc_response.substring(mac_addr_index, name_index);
-				//Append mac_addr to delimitted string
-				mac_addr_str += mac_addr;
-				mac_addr_str += ",";
+      for (int search_index = first_index; search_index != 0; search_index++) {
+        int name_index = disc_response.indexOf(name_str, search_index);
+        int mac_addr_index = name_index - 12;
+        String mac_addr = disc_response.substring(mac_addr_index, name_index);
+        //Append mac_addr to delimitted string
+        mac_addr_str += mac_addr;
+        mac_addr_str += ",";
 
-				search_index = name_index;
-			}
-		}
+        search_index = name_index;
+      }
+    }
     //If no BARCCS devices in discovery, move on w/ empty mac_addr_str
-	}
+  }
   /*If in peripheral, hold in peripheral for some time to create window for a
   connection. Then attempt to receive data before switching modes to enable disc */
-	else{
-		short int random_delay = random(100, 3000);
-		delay(random_delay);
-		receive();
-		centralMode();
-	}
+  /* else{
+    short int random_delay = random(100, 3000);
+    delay(random_delay);
+    receive();
+    centralMode();
+  } */
   return mac_addr_str;
 }
 
 //Connect to device from discovery
 void deviceConnect(String mac_addr_str){
   int mac_addr_count = ((mac_addr_str.length() - 4) % 13);
-	for(int i = 1; i < (mac_addr_count + 1); i++){
+  for(int i = 1; i < (mac_addr_count + 1); i++){
 
-		int search_index = 4 + (i * 13);
-		String mac_addr = mac_addr_str.substring((search_index - 12), search_index);
+    int search_index = 4 + (i * 13);
+    String mac_addr = mac_addr_str.substring((search_index - 13), (search_index - 1));
+    //String mac_addr = "0";
     String con_comm = "AT+CON" + mac_addr;
+    const char * con_comm_ch = con_comm.c_str();
 
-		BTSerial.println("AT"); delay(10);
-		BTSerial.println(con_comm);
-		receive();
-	}
+    Serial.print("Trying to connect to MAC address: ");
+    Serial.println(mac_addr);
+
+    //BTSerial.print("AT"); delay(at_delay);
+    //BTSerial.print(con_comm); delay(10000);
+    delay(10000);
+    String conn_response = atCommandResponse(con_comm_ch, milli_delay);
+    Serial.println();
+    receive();
+  }
 }
 
 String atCommandResponse(const char *toSend, unsigned long milliseconds) {
+  unsigned long startTime = millis();
+
+  while(BTSerial.available() > 0) {
+          BTSerial.read();
+  }
+
   String result;
   Serial.print("Sending: ");
   Serial.println(toSend);
-  BTSerial.println(toSend);
-  unsigned long startTime = millis();
+  BTSerial.print(toSend); delay(at_delay);
+
   Serial.print("Received: ");
   while (millis() - startTime < milliseconds) {
     if (BTSerial.available()) {
       char c = BTSerial.read();
       Serial.write(c);
       result += c;  // append to the result string
+      if ('\n' == c)
+        break;
     }
   }
 Serial.println();  // new line after timeout.
