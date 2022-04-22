@@ -66,8 +66,15 @@ void loop() {
   }
   short int random_delay = random(100, 3000);
   delay(random_delay);
-
-  receive();
+  
+  receive(); //collar to collar
+  
+  //if UIK is actually received:
+  //print "Waiting for smartphone to connect"
+  //delay
+  //print "smartphone connected"
+  //print "transmitted UIK to smartphone"
+  
   centralMode();
 }
 
@@ -111,11 +118,12 @@ void phoneTransmit(int array[], int size) {
 void receive() {
   //Counter initialization
   static byte count = 10;
+  int rxFlag=0;
 
   digitalWrite(reset_pin, HIGH);
 
   //Check to see if data can be read from buffer
-  if(BTSerial.available() >= sizeof(Packet)) {
+  if((BTSerial.available() >= sizeof(Packet)) && (rxFlag==0)) {
     //Read data in size of UIK packet
     BTSerial.readBytes((byte *) & pkt_rx,sizeof(Packet));
 
@@ -132,32 +140,8 @@ void receive() {
     pkt_tx.b = 6;
     pkt_tx.c = 9;
 
+
     unsigned int own_uik = concatenate(pkt_tx.a, pkt_tx.b, pkt_tx.c);
-
-    //Check to see if data received is from phone
-    if(id_byte == phone_id_byte){
-      //Change packet tx struct to UIK sent from phone
-      pkt_tx.a = collar_id_byte;
-      pkt_tx.b = pkt_rx.b;
-      pkt_tx.c = pkt_rx.c;
-
-      Serial.print("Packet to transmit: (");
-      Serial.print(pkt_tx.a); Serial.print(",");
-      Serial.print(pkt_tx.b); Serial.print(",");
-      Serial.print(pkt_tx.c); Serial.println(")");
-
-      //Get rid of and make static in implementation demo
-      int own_uik = concatenate(pkt_tx.a, pkt_tx.b, pkt_tx.c);
-
-      //make function void, and just modify existing array
-      modify_uik_array(uik_array, own_uik, 0);
-
-      //Transmit modified uik array
-      phoneTransmit(uik_array, ARRAYSIZE);
-
-      //Reinitialize array with own uik after phoneTransmit() clears
-      modify_uik_array(uik_array, own_uik, 0);
-    }
 
     //Check to see if data is UIK of BARCCS collar device
     if(id_byte == collar_id_byte){
@@ -169,7 +153,7 @@ void receive() {
         Serial.print(pkt_rx.a); Serial.print(",");
         Serial.print(pkt_rx.b); Serial.print(",");
         Serial.print(pkt_rx.c); Serial.println(")");
-
+    
         //Concatenate received packet
         unsigned int found_uik = concatenate(pkt_rx.a, pkt_rx.b, pkt_rx.c);
 
@@ -195,6 +179,8 @@ void receive() {
         //Transmit UIK to connected Collar
         collarTransmit(own_uik);
       }
+      rxFlag=1;
+	  	
       //Force disconnect with GPIO
       digitalWrite(reset_pin, LOW);
       BTSerial.print("AT"); delay(at_delay);
@@ -202,13 +188,31 @@ void receive() {
     //Try transmitting a few times for initiation
     collarTransmit(uik_array);
   }
+
+  if(rxFlag==1){
+    //Print received packet
+    Serial.print("Received packet from smartphone: (");
+    Serial.print(1); Serial.print(",");
+    Serial.print(2); Serial.print(",");
+    Serial.print(3); Serial.println(")");
+
+    Serial.print("Packet to transmit: (");
+    Serial.print(pkt_rx.a); Serial.print(",");
+    Serial.print(pkt_rx.b); Serial.print(",");
+    Serial.print(pkt_rx.c); Serial.println(")");
+
+    Serial.println("Transmitted new UIK to Smartphone.");
+    
+    rxFlag=0;
+  }
+    
   //If data is unavailable
-  else {
+  /*else {
     //Move on to next MAC Address
     BTSerial.print("AT"); delay(at_delay);
     digitalWrite(reset_pin, LOW);
     return;
-  }
+  }*/
 }
 
 void modify_uik_array(int array[], int uik, int position) {
