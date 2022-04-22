@@ -11,8 +11,8 @@
 SoftwareSerial BTSerial (RX,TX);
 
 int reset_pin = 13;
-byte phone_id_byte = 123;
-byte collar_id_byte = 234;
+byte phone_id_byte = 98;
+byte collar_id_byte = 4;
 int uik_array[ARRAYSIZE] = {};
 int at_delay = 1000;
 unsigned long milli_delay = 5000;
@@ -72,15 +72,23 @@ void loop() {
 }
 
 //Function to transmit UIK packet when after paired and called
-void collarTransmit(int array[]) {
-  int own_uik = array[0];
+void collarTransmit(unsigned int own_uik) {
+//  int own_uik = array[0];
   String collar_s = String(collar_id_byte);
   int collar_i = collar_s.toInt();
   bool collar_test = checkPrefix(own_uik, collar_i);
+
+//  Serial.print("Packet transmitted to collar: (");
+//  Serial.print(pkt_rx.a); Serial.print(",");
+//  Serial.print(pkt_rx.b); Serial.print(",");
+//  Serial.print(pkt_rx.c); Serial.println(")");
+  
   //Transmit own UIK a few times to avoid faulty packet transmission
   if (collar_test) {
     for(int i=0; i<10; i++) {
       BTSerial.write(own_uik);
+      Serial.print("UIK transmitted to collar: ");
+      Serial.println(own_uik);
       delay(10); //small delay to avoid data collision
     }
   }
@@ -119,6 +127,13 @@ void receive() {
 
     byte id_byte = pkt_rx.a;
 
+    //Set own UIK for TX w/o phone
+    pkt_tx.a = collar_id_byte;
+    pkt_tx.b = 6;
+    pkt_tx.c = 9;
+
+    unsigned int own_uik = concatenate(pkt_tx.a, pkt_tx.b, pkt_tx.c);
+
     //Check to see if data received is from phone
     if(id_byte == phone_id_byte){
       //Change packet tx struct to UIK sent from phone
@@ -156,22 +171,21 @@ void receive() {
         Serial.print(pkt_rx.c); Serial.println(")");
 
         //Concatenate received packet
-        int found_uik = concatenate(pkt_rx.a, pkt_rx.b, pkt_rx.c);
-        Serial.println(found_uik);
+        unsigned int found_uik = concatenate(pkt_rx.a, pkt_rx.b, pkt_rx.c);
 
         //Append received packet to array of x length, skipping
         //over the 0th position to not overwrite own_uik
         for(int i=1; i<ARRAYSIZE; i++) {
           bool uik_exists;
-          do {
-            uik_exists = false;
-            for(int j=1; j<i; j++) {
-              if(found_uik == uik_array[j]) {
-                uik_exists = true;
-                break;
-              }
-            }
-          } while(uik_exists);
+//          do {
+//            uik_exists = false;
+//            for(int j=1; j<i; j++) {
+//              if(found_uik == uik_array[j]) {
+//                uik_exists = true;
+//                break;
+//              }
+//            }
+//          } while(uik_exists);
           modify_uik_array(uik_array, found_uik, i);
         }
         //Flush serial buffer
@@ -179,7 +193,7 @@ void receive() {
           BTSerial.read();
         }
         //Transmit UIK to connected Collar
-        collarTransmit(uik_array);
+        collarTransmit(own_uik);
       }
       //Force disconnect with GPIO
       digitalWrite(reset_pin, LOW);
@@ -233,14 +247,14 @@ bool checkPrefix(int uik, int device_id) {
     return true;
 }
 
-int concatenate(byte a, byte b, byte c) {
+unsigned int concatenate(byte a, byte b, byte c) {
   String s1 = String(a);
   String s2 = String(b);
   String s3 = String(c);
 
   String uik = String(s1 + s2 + s3);
 
-  int uik_i = uik.toInt();
+  unsigned int uik_i = uik.toInt();
 
   return uik_i;
 }
@@ -319,6 +333,7 @@ void deviceConnect(String mac_addr_str){
     //BTSerial.print("AT"); delay(at_delay);
     //BTSerial.print(con_comm); delay(10000);
     delay(10000);
+    Serial.println("Connected.");
     String conn_response = atCommandResponse(con_comm_ch, milli_delay);
     Serial.println();
     receive();
